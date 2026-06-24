@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Boendeplanering — Nääs Slott</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Inter:wght@300;400;500&display=swap');
+
+:root {
+  --cream: #F7F3EE;
+  --ink: #1E1A16;
+  --ink-muted: #6B6358;
+  --ink-faint: #B8B0A6;
+  --gold: #C4973A;
+  --gold-light: #F0E4CC;
+  --gold-pale: #FBF6ED;
+  --border: #DDD5C8;
+  --border-strong: #C4B8A8;
+  --shadow: 0 2px 8px rgba(30,26,22,0.08);
+  --radius: 6px;
+  --chip-adult-bg:#EEE8F5;--chip-adult-fg:#4A3580;--chip-adult-br:#C8B8E8;
+  --chip-child-bg:#FDF0DC;--chip-child-fg:#7A5010;--chip-child-br:#E8C070;
+  --chip-allergy-bg:#F2DDD9;--chip-allergy-fg:#8A3020;--chip-allergy-br:#D8A098;
+  --chip-missing-bg:#D8E2EA;--chip-missing-fg:#3A4A58;--chip-missing-br:#A8B8C8;
+  --chip-unplaced-bg:#D6E8DE;--chip-unplaced-fg:#2A5A3A;--chip-unplaced-br:#90C8A0;
+  --warn:#C0392B;--warn-bg:#FDECEA;--ok:#27ae60;
+  --header-h: 56px;
+  --sheet-peek: 72px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:var(--cream);color:var(--ink);font-size:13px;}
+
+/* ── Header ── */
+header{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  background:var(--ink);color:var(--cream);
+  padding:0 20px;display:flex;align-items:center;gap:12px;
+  border-bottom:2px solid var(--gold);height:var(--header-h);
+}
+header h1{font-family:'Playfair Display',serif;font-size:18px;font-weight:400;letter-spacing:.02em;white-space:nowrap;}
+header .sub{font-size:10px;color:var(--gold);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;}
+.stats-bar{margin-left:auto;display:flex;gap:12px;align-items:center;}
+.stat{text-align:center;line-height:1.2;}
+.stat-num{font-size:15px;font-weight:500;color:var(--gold);}
+.stat-label{font-size:9px;color:#999;letter-spacing:.04em;text-transform:uppercase;}
+#sync-status{font-size:11px;min-width:80px;text-align:right;color:var(--ok);}
+
+/* ── Layout: desktop side-by-side, mobile stacked ── */
+.app{
+  position:fixed;top:var(--header-h);left:0;right:0;bottom:0;
+  display:flex;
+}
+
+/* ── Main scroll area ── */
+.main{
+  flex:1;overflow-y:auto;
+  padding:14px 16px;
+  display:flex;flex-direction:column;gap:12px;
+  -webkit-overflow-scrolling:touch;
+}
+.main::-webkit-scrollbar{width:4px;}
+.main::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+/* ── Sidebar — desktop ── */
+.sidebar{
+  width:230px;min-width:210px;flex-shrink:0;
+  background:white;border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+
+/* ── Sidebar — tablet/mobile bottom sheet ── */
+@media (max-width: 900px) {
+  .app{ flex-direction:column; }
+  .main{ bottom:var(--sheet-peek); padding-bottom:20px; }
+
+  .sidebar{
+    position:fixed;
+    left:0;right:0;bottom:0;
+    width:100%;min-width:0;
+    border-right:none;
+    border-top:1px solid var(--border);
+    border-radius:16px 16px 0 0;
+    height:calc(100% - var(--header-h) - 8px);
+    transform:translateY(calc(100% - var(--sheet-peek)));
+    transition:transform .32s cubic-bezier(.4,0,.2,1);
+    z-index:90;
+    box-shadow:0 -4px 24px rgba(30,26,22,0.13);
+  }
+  .sidebar.open{
+    transform:translateY(0);
+  }
+  .sheet-handle{
+    display:flex;flex-direction:column;align-items:center;
+    padding:10px 0 6px;cursor:pointer;background:white;
+    border-radius:16px 16px 0 0;flex-shrink:0;
+    border-bottom:1px solid var(--border);
+  }
+  .sheet-handle-bar{
+    width:36px;height:4px;border-radius:2px;
+    background:var(--border-strong);margin-bottom:6px;
+  }
+  .sheet-handle-label{
+    font-size:11px;color:var(--ink-muted);letter-spacing:.05em;text-transform:uppercase;
+    display:flex;align-items:center;gap:6px;
+  }
+  .sheet-handle-count{
+    background:var(--chip-unplaced-bg);color:var(--chip-unplaced-fg);
+    border:1px solid var(--chip-unplaced-br);
+    border-radius:10px;padding:1px 7px;font-size:10px;font-weight:500;
+  }
+}
+@media (min-width: 901px){
+  .sheet-handle{display:none;}
+}
+
+/* ── Sidebar internals ── */
+.sb-head{padding:10px 14px 8px;border-bottom:1px solid var(--border);background:var(--gold-pale);flex-shrink:0;}
+.sb-head h2{font-family:'Playfair Display',serif;font-size:13px;font-weight:400;margin-bottom:8px;}
+.add-form{display:flex;flex-direction:column;gap:5px;}
+.add-form input[type=text],.add-form select{
+  width:100%;padding:7px 9px;border:1px solid var(--border-strong);
+  border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;
+  background:white;color:var(--ink);outline:none;
+}
+.add-form input:focus,.add-form select:focus{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-light);}
+.frow{display:flex;gap:5px;align-items:center;}
+.frow label{font-size:11px;color:var(--ink-muted);white-space:nowrap;width:46px;}
+.frow input,.frow select{flex:1;}
+.btn-add{
+  width:100%;padding:8px;background:var(--ink);color:var(--cream);
+  border:none;border-radius:4px;font-family:'Inter',sans-serif;
+  font-size:13px;cursor:pointer;letter-spacing:.02em;transition:background .15s;
+}
+.btn-add:hover,.btn-add:active{background:var(--gold);}
+.search-wrap{padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.search-wrap input{
+  width:100%;padding:7px 9px 7px 28px;border:1px solid var(--border);
+  border-radius:4px;font-size:13px;background:var(--cream);color:var(--ink);outline:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%236B6358' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:8px center;
+}
+.search-wrap input:focus{border-color:var(--gold);}
+.legend{padding:6px 14px;display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.leg{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--ink-muted);}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.guest-list{flex:1;overflow-y:auto;padding:8px 10px;-webkit-overflow-scrolling:touch;}
+.guest-list::-webkit-scrollbar{width:3px;}
+.guest-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.pool-label{font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;padding:0 2px;}
+.pool-drop{
+  min-height:40px;border:1.5px dashed var(--border);border-radius:var(--radius);
+  padding:6px;display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;
+  transition:border-color .15s,background .15s;
+}
+.pool-drop.drag-over{border-color:var(--gold);background:var(--gold-pale);}
+
+/* ── Chips ── */
+.chip{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:4px 8px 4px 7px;border-radius:20px;font-size:12px;
+  cursor:grab;user-select:none;white-space:nowrap;
+  border:1px solid transparent;line-height:1.4;
+  touch-action:none;
+}
+.chip.touch-dragging{
+  position:fixed;z-index:999;pointer-events:none;
+  opacity:.85;transform:rotate(-2deg) scale(1.06);
+  box-shadow:0 6px 20px rgba(30,26,22,0.2);
+}
+.chip.ghost{opacity:.3;}
+.chip-x{font-size:12px;opacity:.4;cursor:pointer;padding:0 2px;touch-action:auto;}
+.chip-x:hover{opacity:1;}
+.chip-cap{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;border-radius:50%;font-size:8px;font-weight:500;flex-shrink:0;
+}
+.chip-adult{background:var(--chip-adult-bg);color:var(--chip-adult-fg);border-color:var(--chip-adult-br);}
+.chip-child{background:var(--chip-child-bg);color:var(--chip-child-fg);border-color:var(--chip-child-br);}
+.chip-allergy{background:var(--chip-allergy-bg);color:var(--chip-allergy-fg);border-color:var(--chip-allergy-br);}
+.chip-missing{background:var(--chip-missing-bg);color:var(--chip-missing-fg);border-color:var(--chip-missing-br);}
+.chip-unplaced{background:var(--chip-unplaced-bg);color:var(--chip-unplaced-fg);border-color:var(--chip-unplaced-br);}
+.chip.highlight{outline:2px solid var(--gold);outline-offset:1px;}
+
+/* ── Location blocks ── */
+.loc-block{background:white;border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);}
+.loc-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;background:var(--ink);color:var(--cream);
+  cursor:pointer;user-select:none;
+}
+.loc-title{font-family:'Playfair Display',serif;font-size:14px;font-weight:400;letter-spacing:.02em;}
+.loc-meta{font-size:11px;color:var(--gold);display:flex;align-items:center;gap:8px;}
+.chev{font-size:11px;transition:transform .2s;display:inline-block;}
+.chev.open{transform:rotate(180deg);}
+.loc-body{padding:10px 12px;}
+.floors{display:flex;flex-direction:column;gap:8px;}
+.floor-row{display:flex;gap:8px;align-items:flex-start;}
+.floor-label{
+  writing-mode:vertical-rl;transform:rotate(180deg);
+  font-size:10px;color:var(--ink-faint);letter-spacing:.07em;text-transform:uppercase;
+  flex-shrink:0;border-right:1.5px solid var(--border);padding-right:5px;margin-right:2px;
+}
+.rooms-row{display:flex;flex-wrap:wrap;gap:6px;flex:1;}
+
+/* ── Room card ── */
+.room-card{
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:7px 8px;background:var(--cream);
+  display:flex;flex-direction:column;gap:4px;
+  transition:border-color .15s,background .15s;
+  min-width:120px;
+}
+.room-card.drag-over{border-color:var(--gold);background:var(--gold-pale);box-shadow:0 0 0 2px var(--gold-light);}
+.room-hdr{display:flex;justify-content:space-between;align-items:center;}
+.room-name{font-size:11px;font-weight:500;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.03em;}
+.room-beds{font-size:10px;padding:1px 6px;border-radius:10px;border:1px solid var(--border);color:var(--ink-faint);white-space:nowrap;}
+.room-beds.over-capacity{background:var(--warn-bg);color:var(--warn);border-color:#f0b0a8;}
+.room-beds.at-capacity{background:#EAF3DE;color:#3B6D11;border-color:#90C860;}
+.room-chips{display:flex;flex-wrap:wrap;gap:3px;min-height:22px;}
+
+/* ── Sjölyckan ── */
+.add-room-row{display:flex;gap:6px;align-items:center;padding:6px 0 2px;flex-wrap:wrap;}
+.add-room-row input{
+  padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;
+  font-size:13px;font-family:'Inter',sans-serif;background:white;color:var(--ink);outline:none;
+}
+.add-room-row input:focus{border-color:var(--gold);}
+.btn-sm{padding:6px 12px;background:var(--ink);color:var(--cream);border:none;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap;}
+.btn-sm:hover,.btn-sm:active{background:var(--gold);}
+.btn-rm{padding:3px 7px;background:transparent;color:var(--warn);border:1px solid #f0b0a8;border-radius:4px;font-size:11px;cursor:pointer;}
+.btn-rm:hover{background:var(--warn-bg);}
+
+/* ── Own accommodation ── */
+.own-room{
+  border:1.5px dashed var(--border-strong);border-radius:var(--radius);
+  padding:10px 12px;background:var(--cream);min-height:60px;
+  display:flex;flex-direction:column;gap:6px;width:100%;
+  transition:border-color .15s,background .15s;
+}
+.own-room.drag-over{border-color:var(--gold);background:var(--gold-pale);box-shadow:0 0 0 2px var(--gold-light);}
+.own-room-lbl{font-size:11px;color:var(--ink-faint);font-style:italic;}
+.own-room-chips{display:flex;flex-wrap:wrap;gap:4px;min-height:22px;}
+
+/* ── Responsive tweaks ── */
+@media (max-width:600px){
+  header h1{font-size:15px;}
+  header .sub{display:none;}
+  .stats-bar{gap:8px;}
+  .stat-num{font-size:13px;}
+  .stat-label{font-size:8px;}
+  #sync-status{display:none;}
+  .room-card{min-width:calc(50% - 3px);}
+}
+@media (min-width:601px) and (max-width:900px){
+  .room-card{min-width:140px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Nääs Slott</h1>
+    <span class="sub">Boendeplanering · 12 sep 2025</span>
+  </div>
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-num" id="s-total">0</div><div class="stat-label">Gäster</div></div>
+    <div class="stat"><div class="stat-num" id="s-placed">0</div><div class="stat-label">Placerade</div></div>
+    <div class="stat"><div class="stat-num" id="s-own">0</div><div class="stat-label">Eget</div></div>
+    <div class="stat"><div class="stat-num" id="s-unplaced">0</div><div class="stat-label">Kvar</div></div>
+    <div class="stat"><div class="stat-num" id="s-beds">0</div><div class="stat-label">Bäddar</div></div>
+    <div id="sync-status">● Live</div>
+  </div>
+</header>
+
+<div class="app">
+  <main class="main" id="mainArea"></main>
+
+  <aside class="sidebar" id="sidebar">
+    <!-- Sheet handle (only visible on tablet/mobile) -->
+    <div class="sheet-handle" id="sheetHandle" onclick="toggleSheet()">
+      <div class="sheet-handle-bar"></div>
+      <div class="sheet-handle-label">
+        Gästlista
+        <span class="sheet-handle-count" id="sheet-unplaced-count">0 kvar</span>
+      </div>
+    </div>
+
+    <div class="sb-head">
+      <h2>Lägg till gäst</h2>
+      <div class="add-form">
+        <input type="text" id="newName" placeholder="Förnamn Efternamn" />
+        <div class="frow"><label>Typ</label>
+          <select id="newType"><option value="adult">Vuxen</option><option value="child">Barn</option></select>
+        </div>
+        <div class="frow"><label>Allergi</label>
+          <input type="text" id="newAllergy" placeholder="valfritt" />
+        </div>
+        <button class="btn-add" onclick="addGuest()">+ Lägg till</button>
+      </div>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="searchInp" placeholder="Sök gäst..." oninput="doSearch()" />
+    </div>
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:var(--chip-adult-br)"></div>Vuxen</div>
+      <div class="leg"><div class="leg-dot" style="background:var(--chip-child-br)"></div>Barn</div>
+      <div class="leg"><div class="leg-dot" style="background:var(--chip-allergy-br)"></div>Allergi</div>
+      <div class="leg"><div class="leg-dot" style="background:var(--chip-missing-br)"></div>Saknas OSA</div>
+    </div>
+    <div class="guest-list" id="guestList"></div>
+  </aside>
+</div>
+
+<script type="module">
+// ── Guest data ────────────────────────────────────────────────────────────────
+const GUESTS = [
+  {id:"victoria_edberg",n:"Victoria Edberg",t:"adult",a:""},
+  {id:"jonas_edberg",n:"Jonas Edberg",t:"adult",a:""},
+  {id:"ola_larsson",n:"Ola Larsson",t:"adult",a:""},
+  {id:"marie_holbek",n:"Marie Holbek",t:"adult",a:"Gluten"},
+  {id:"malin_obermuller",n:"Malin Obermüller",t:"adult",a:""},
+  {id:"molly_plomgren",n:"Molly Plomgren",t:"adult",a:""},
+  {id:"morgan_plomgren",n:"Morgan Plomgren",t:"adult",a:""},
+  {id:"johan_pamp",n:"Johan Pamp",t:"adult",a:""},
+  {id:"caroline_hallin",n:"Caroline Hallin",t:"adult",a:"Gluten"},
+  {id:"jan_svensson",n:"Jan Svensson",t:"adult",a:""},
+  {id:"linda_wickell",n:"Linda Wickell",t:"adult",a:""},
+  {id:"anna_wodlen",n:"Anna Wodlén Ödman",t:"adult",a:""},
+  {id:"sigurd_wodlen",n:"Sigurd Wodlén Ödman",t:"adult",a:""},
+  {id:"jared_lekkas",n:"Jared Lekkas",t:"adult",a:""},
+  {id:"sofie_lekkas",n:"Sofie Lekkas",t:"adult",a:""},
+  {id:"elisabet_zilen",n:"Elisabet Zilén",t:"adult",a:"Svamp"},
+  {id:"joakim_zilen",n:"Joakim Zilén",t:"adult",a:"Skaldjur"},
+  {id:"barn_zilen1",n:"Barn Zilén (1)",t:"child",a:""},
+  {id:"barn_zilen2",n:"Barn Zilén (2)",t:"child",a:""},
+  {id:"barn_zilen3",n:"Barn Zilén (3)",t:"child",a:""},
+  {id:"mira_bergerheim",n:"Mira Bergerheim",t:"adult",a:""},
+  {id:"julius_bergerheim",n:"Julius Bergerheim",t:"adult",a:""},
+  {id:"nina_bergerheim",n:"Nina Bergerheim",t:"adult",a:""},
+  {id:"oscar_pettersson",n:"Oscar Pettersson",t:"adult",a:""},
+  {id:"nils_sundqvist",n:"Nils Sundqvist",t:"adult",a:""},
+  {id:"anders_sundqvist",n:"Anders Sundqvist",t:"adult",a:""},
+  {id:"karin_sundqvist",n:"Karin Sundqvist",t:"adult",a:""},
+  {id:"malin_ekstrom",n:"Malin Ekström",t:"adult",a:""},
+  {id:"johan_obermuller",n:"Johan Obermüller",t:"adult",a:""},
+  {id:"frida_obermuller",n:"Frida Obermüller",t:"adult",a:""},
+  {id:"gabriela_niering",n:"Gabriela Niering",t:"adult",a:"Gluten/laktos"},
+  {id:"arvid_niering",n:"Arvid Niering",t:"adult",a:""},
+  {id:"elin_niering",n:"Elin Niering",t:"adult",a:""},
+  {id:"sara_kallay",n:"Sara Kallay",t:"adult",a:""},
+  {id:"tobias_gillberg",n:"Tobias Gillberg",t:"adult",a:""},
+  {id:"magnus_guldenpfennig",n:"Magnus Güldenpfennig",t:"adult",a:"Laktos"},
+  {id:"emelie_guldenpfennig",n:"Emelie Güldenpfennig",t:"adult",a:"Pescetarian"},
+  {id:"maria_hagsater",n:"Maria Hagsäter Lagerkvist",t:"adult",a:"Veg/fisk"},
+  {id:"melker_hagsater",n:"Melker Hagsäter",t:"adult",a:""},
+  {id:"ake_sporrstedt",n:"Åke Sporrstedt",t:"adult",a:""},
+  {id:"annmarie_sporrstedt",n:"Ann-marie Sporrstedt",t:"adult",a:""},
+  {id:"simon_ekstrom",n:"Simon Ekström",t:"adult",a:""},
+  {id:"nora_ekstrom",n:"Nora Ekström",t:"adult",a:""},
+  {id:"axel_ekstrom",n:"Axel Ekström",t:"adult",a:""},
+  {id:"sofia_ekstrom",n:"Sofia Ekström",t:"adult",a:""},
+  {id:"joel_ekstrom",n:"Joel Ekström",t:"adult",a:""},
+  {id:"linda_gartman",n:"Linda Gartman",t:"adult",a:"Vegetarian"},
+  {id:"annika_niering",n:"Annika Niering Ranman",t:"adult",a:""},
+  {id:"jacques_six",n:"Jacques Six",t:"adult",a:""},
+  {id:"maria_six",n:"Maria Förssell Six",t:"adult",a:""},
+  {id:"daniel_norlander",n:"Daniel Norlander",t:"adult",a:""},
+  {id:"sara_ekstrom",n:"Sara Ekström",t:"adult",a:"Skaldjur"},
+  {id:"fredrik_karlsson",n:"Fredrik Karlsson",t:"adult",a:""},
+  {id:"martina_svensson",n:"Martina Svensson",t:"adult",a:""},
+  {id:"karsten_meyer",n:"Karsten Meyer",t:"adult",a:""},
+  {id:"gunilla_meyer",n:"Gunilla Meyer",t:"adult",a:"Ej skaldjur/nötter"},
+  {id:"jacob_matern",n:"Jacob von Matérn",t:"adult",a:""},
+  {id:"maria_engkvist",n:"Maria Engkvist",t:"adult",a:""},
+  {id:"andreas_lagersten",n:"Andreas Lägersten",t:"adult",a:""},
+  {id:"susanne_lagersten",n:"Susanne Lägersten",t:"adult",a:"Mjöl"},
+  {id:"folke_lundgren",n:"Folke Lundgren",t:"adult",a:"Vegetarian"},
+  {id:"milea_lundgren",n:"Milea Lundgren",t:"adult",a:"Ej griskött"},
+  {id:"anna_broberg",n:"Anna Broberg",t:"adult",a:""},
+  {id:"brittmarie_ekstrom",n:"Britt-Marie Ekström",t:"adult",a:"Fisk/skaldjur/nötter"},
+  {id:"gabor_kugler",n:"Gabor Kugler",t:"adult",a:""},
+  {id:"edda_niering",n:"Edda Niering",t:"adult",a:""},
+  {id:"hilma_niering",n:"Hilma Niering",t:"adult",a:""},
+  {id:"william_niering",n:"William Niering",t:"adult",a:""},
+  {id:"karl_ekstrom",n:"Karl Ekström",t:"adult",a:"Ej fisk"},
+  {id:"sofia_niering",n:"Sofia Niering",t:"adult",a:""},
+  {id:"lars_zilen",n:"Lars Zilén",t:"adult",a:"",missing:true},
+  {id:"gunnel_zilen",n:"Gunnel Zilén",t:"adult",a:"",missing:true},
+];
+
+const LOCATIONS = [
+  { id:"bjn", name:"Björke Näääs Nor", floors:[
+    { label:"Övre", rooms:[
+      {id:"bjn_torsten",name:"Torsten",beds:2},
+      {id:"bjn_gunnar", name:"Gunnar", beds:2},
+      {id:"bjn_alfred", name:"Alfred", beds:5},
+    ]},
+    { label:"Nedre", rooms:[
+      {id:"bjn_anita",name:"Anita",beds:2},
+      {id:"bjn_carl", name:"Carl", beds:2},
+      {id:"bjn_nils", name:"Nils", beds:5},
+      {id:"bjn_rurik",name:"Rurik",beds:2},
+    ]},
+  ]},
+  { id:"van", name:"Vänhem", floors:[
+    { label:"Nedre", rooms:[
+      {id:"van_alma", name:"Alma", beds:2},
+      {id:"van_karna",name:"Karna",beds:2},
+    ]},
+    { label:"Övre", rooms:[
+      {id:"van_tuph",  name:"Tuphrosyne",beds:2},
+      {id:"van_elis",  name:"Elisabet",  beds:2},
+      {id:"van_ingrid",name:"Ingrid",    beds:8},
+    ]},
+  ]},
+  { id:"eku", name:"Ekudden", floors:[
+    { label:"", rooms:[
+      {id:"eku_svalan", name:"Svalan",      beds:3},
+      {id:"eku_barnrum",name:"Barnrum",     beds:2},
+      {id:"eku_deras",  name:"Deras sovrum",beds:2},
+      {id:"eku_troll",  name:"Trollsländan",beds:2},
+      {id:"eku_igel",   name:"Igelkotten",  beds:2},
+      {id:"eku_humlan", name:"Humlan",      beds:2},
+      {id:"eku_ekorr",  name:"Ekorren",     beds:2},
+    ]},
+  ]},
+  { id:"nor", name:"Norra Flygeln", floors:[
+    { label:"", rooms:[
+      {id:"nor_kristina",name:"Kristina",beds:2},
+      {id:"nor_herik",   name:"Herik",   beds:2},
+      {id:"nor_bohr",    name:"Bohr",    beds:2},
+      {id:"nor_kennet",  name:"Kennet",  beds:2},
+    ]},
+  ]},
+  { id:"sod", name:"Södra Flygeln", floors:[
+    { label:"", rooms:[
+      {id:"sod_svit",name:"Bröllopssviterna",beds:0},
+    ]},
+  ]},
+  { id:"sjo", name:"Sjölyckan", dynamic:true, floors:[
+    { label:"", rooms:[] },
+  ]},
+  { id:"eget", name:"Eget boende", ownAccommodation:true, floors:[
+    { label:"", rooms:[{id:"eget_eget",name:"Eget boende",beds:0}]},
+  ]},
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const placement = {};
+GUESTS.forEach(g=>{ placement[g.id]=null; });
+let searchQ="", collapsed={}, dragId=null, sjolyckanCounter=1;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function allRooms(){ const r=[]; LOCATIONS.forEach(l=>l.floors.forEach(f=>f.rooms.forEach(rm=>r.push(rm)))); return r; }
+function guestsInRoom(rid){ return GUESTS.filter(g=>placement[g.id]===rid); }
+function unplacedGuests(){ return GUESTS.filter(g=>placement[g.id]===null); }
+function ownAccomGuests(){ return GUESTS.filter(g=>placement[g.id]==="eget_eget"); }
+function totalBeds(){ return allRooms().reduce((s,r)=>s+(r.beds||0),0); }
+
+function chipCls(g,inPool=false){
+  if(inPool) return "chip chip-unplaced";
+  if(g.missing) return "chip chip-missing";
+  if(g.t==="child") return "chip chip-child";
+  if(g.a) return "chip chip-allergy";
+  return "chip chip-adult";
+}
+function chipHTML(g,inPool=false){
+  const hi=searchQ&&g.n.toLowerCase().includes(searchQ.toLowerCase());
+  const sym=g.a?" ⚠":(g.missing?" ?":"");
+  const tip=g.a?`Allergi: ${g.a}`:(g.missing?"Saknas i OSA":"");
+  const badge=g.t==="child"?`<span class="chip-cap" style="background:var(--chip-child-br);color:var(--chip-child-fg)">B</span>`:"";
+  return `<span class="${chipCls(g,inPool)}${hi?" highlight":""}" data-id="${g.id}" draggable="true" title="${tip}">${g.n}${sym}${badge}<span class="chip-x" data-remove="${g.id}">×</span></span>`;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderStats(){
+  const total=GUESTS.length, placed=GUESTS.filter(g=>placement[g.id]!==null).length, own=ownAccomGuests().length;
+  document.getElementById('s-total').textContent=total;
+  document.getElementById('s-placed').textContent=placed-own;
+  document.getElementById('s-own').textContent=own;
+  document.getElementById('s-unplaced').textContent=total-placed;
+  document.getElementById('s-beds').textContent=totalBeds();
+  const sc=document.getElementById('sheet-unplaced-count');
+  if(sc){ const u=total-placed; sc.textContent=u>0?u+" kvar":"Alla placerade ✓"; }
+}
+
+function renderSidebar(){
+  const unplaced=unplacedGuests();
+  const filtered=searchQ?unplaced.filter(g=>g.n.toLowerCase().includes(searchQ.toLowerCase())):unplaced;
+  let html=`<div class="pool-label">Ej placerade (${unplaced.length})</div>
+    <div class="pool-drop" id="pool-drop">
+      ${filtered.map(g=>chipHTML(g,true)).join("")}
+      ${filtered.length===0&&unplaced.length===0?'<span style="font-size:11px;color:var(--ink-faint)">Alla placerade ✓</span>':""}
+    </div>`;
+  if(searchQ){
+    const placed=GUESTS.filter(g=>placement[g.id]!==null&&g.n.toLowerCase().includes(searchQ.toLowerCase()));
+    if(placed.length){
+      html+=`<div class="pool-label" style="margin-top:6px">Placerade träffar</div>`;
+      placed.forEach(g=>{ const rm=allRooms().find(r=>r.id===placement[g.id]); html+=`<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">${chipHTML(g)}<span style="font-size:10px;color:var(--ink-faint)">${rm?rm.name:""}</span></div>`; });
+    }
+  }
+  document.getElementById("guestList").innerHTML=html;
+}
+
+function renderMain(){
+  let html="";
+  for(const loc of LOCATIONS){
+    const isOpen=!collapsed[loc.id];
+    const totalG=loc.floors.reduce((s,f)=>s+f.rooms.reduce((ss,r)=>ss+guestsInRoom(r.id).length,0),0);
+    const totalB=loc.floors.reduce((s,f)=>s+f.rooms.reduce((ss,r)=>ss+(r.beds||0),0),0);
+    html+=`<div class="loc-block">
+      <div class="loc-hdr" data-toggle="${loc.id}">
+        <span class="loc-title">${loc.name}</span>
+        <span class="loc-meta">${totalG} gäster${totalB>0?" · "+totalB+" bäddar":""}
+          <span class="chev ${isOpen?"open":""}">▲</span></span>
+      </div>`;
+    if(isOpen){
+      html+=`<div class="loc-body">`;
+      if(loc.ownAccommodation){
+        const rm=loc.floors[0].rooms[0]; const guests=guestsInRoom(rm.id);
+        html+=`<div class="own-room" data-room="${rm.id}"><span class="own-room-lbl">Dra hit gäster som ordnar eget boende</span><div class="own-room-chips">${guests.map(g=>chipHTML(g)).join("")}</div></div></div></div>`;
+        continue;
+      }
+      if(loc.dynamic){
+        html+=`<div class="add-room-row">
+          <input type="text" id="sjo-name" placeholder="Rumsnamn" style="width:120px"/>
+          <input type="number" id="sjo-beds" placeholder="Bäddar" min="1" max="20" style="width:65px"/>
+          <button class="btn-sm" onclick="addSjolyckanRoom()">+ Rum</button></div>`;
+      }
+      html+=`<div class="floors">`;
+      for(const floor of loc.floors){
+        if(!floor.rooms.length&&!loc.dynamic) continue;
+        html+=`<div class="floor-row">`;
+        if(floor.label) html+=`<div class="floor-label">${floor.label}</div>`;
+        html+=`<div class="rooms-row">`;
+        for(const rm of floor.rooms){
+          const guests=guestsInRoom(rm.id), cap=rm.beds||0;
+          const over=cap>0&&guests.length>cap, full=cap>0&&guests.length===cap;
+          const bl=cap===0?"Obegränsat":`${guests.length}/${cap}`;
+          const bc=over?"room-beds over-capacity":full?"room-beds at-capacity":"room-beds";
+          html+=`<div class="room-card" data-room="${rm.id}">
+            <div class="room-hdr"><span class="room-name">${rm.name}</span><span class="${bc}">${bl}</span></div>
+            <div class="room-chips">${guests.map(g=>chipHTML(g)).join("")}</div>`;
+          if(loc.dynamic) html+=`<div style="margin-top:3px"><button class="btn-rm" onclick="removeSjolyckanRoom('${rm.id}')">Ta bort</button></div>`;
+          html+=`</div>`;
+        }
+        html+=`</div></div>`;
+      }
+      html+=`</div></div>`;
+    }
+    html+=`</div>`;
+  }
+  document.getElementById("mainArea").innerHTML=html;
+}
+
+function render(){ renderStats(); renderSidebar(); renderMain(); }
+
+// ── Event delegation for static clicks ───────────────────────────────────────
+document.addEventListener("click", e=>{
+  // Remove chip
+  const rm=e.target.closest("[data-remove]");
+  if(rm){ e.stopPropagation(); placement[rm.dataset.remove]=null; saveToFirestore(); render(); return; }
+  // Toggle location
+  const tog=e.target.closest("[data-toggle]");
+  if(tog){ collapsed[tog.dataset.toggle]=!collapsed[tog.dataset.toggle]; render(); return; }
+});
+
+// ── Touch drag & drop ─────────────────────────────────────────────────────────
+let touchDragEl=null, touchGhostEl=null, touchDragId=null, touchLastTarget=null;
+
+function findDropTarget(x,y){
+  // hide ghost to hit-test underneath
+  if(touchGhostEl) touchGhostEl.style.display="none";
+  const el=document.elementFromPoint(x,y);
+  if(touchGhostEl) touchGhostEl.style.display="";
+  if(!el) return null;
+  const room=el.closest("[data-room]");
+  if(room) return {type:"room", id:room.dataset.room};
+  if(el.closest("#pool-drop")) return {type:"pool"};
+  return null;
+}
+
+document.addEventListener("touchstart", e=>{
+  const chip=e.target.closest(".chip[data-id]");
+  if(!chip||e.target.closest("[data-remove]")) return;
+  touchDragId=chip.dataset.id;
+  touchDragEl=chip;
+
+  // Create floating ghost
+  const rect=chip.getBoundingClientRect();
+  touchGhostEl=chip.cloneNode(true);
+  touchGhostEl.classList.add("touch-dragging");
+  touchGhostEl.style.width=rect.width+"px";
+  touchGhostEl.style.left=rect.left+"px";
+  touchGhostEl.style.top=rect.top+"px";
+  document.body.appendChild(touchGhostEl);
+  chip.classList.add("ghost");
+  e.preventDefault();
+},{passive:false});
+
+document.addEventListener("touchmove", e=>{
+  if(!touchGhostEl) return;
+  e.preventDefault();
+  const t=e.touches[0];
+  touchGhostEl.style.left=(t.clientX-44)+"px";
+  touchGhostEl.style.top=(t.clientY-16)+"px";
+
+  // Highlight drop target
+  const target=findDropTarget(t.clientX,t.clientY);
+  document.querySelectorAll(".room-card.drag-over,.own-room.drag-over,.pool-drop.drag-over").forEach(el=>el.classList.remove("drag-over"));
+  if(target){
+    if(target.type==="room"){
+      const el=document.querySelector(`[data-room="${target.id}"]`);
+      if(el) el.classList.add("drag-over");
+    } else {
+      const pool=document.getElementById("pool-drop");
+      if(pool) pool.classList.add("drag-over");
+    }
+  }
+  touchLastTarget=target;
+},{passive:false});
+
+document.addEventListener("touchend", e=>{
+  if(!touchGhostEl) return;
+  document.querySelectorAll(".drag-over").forEach(el=>el.classList.remove("drag-over"));
+  if(touchDragEl) touchDragEl.classList.remove("ghost");
+  touchGhostEl.remove(); touchGhostEl=null;
+
+  if(touchLastTarget&&touchDragId){
+    if(touchLastTarget.type==="room") placement[touchDragId]=touchLastTarget.id;
+    else placement[touchDragId]=null;
+    saveToFirestore();
+    render();
+  }
+  touchDragId=null; touchDragEl=null; touchLastTarget=null;
+},{passive:true});
+
+// ── Desktop drag & drop ───────────────────────────────────────────────────────
+document.addEventListener("dragstart", e=>{
+  const chip=e.target.closest(".chip[data-id]");
+  if(!chip) return;
+  dragId=chip.dataset.id;
+  e.dataTransfer.effectAllowed="move";
+  e.dataTransfer.setData("text/plain",dragId);
+  setTimeout(()=>chip.classList.add("ghost"),0);
+});
+document.addEventListener("dragend", e=>{
+  document.querySelectorAll(".chip.ghost").forEach(c=>c.classList.remove("ghost"));
+  dragId=null;
+});
+document.addEventListener("dragover", e=>{
+  const room=e.target.closest("[data-room]");
+  const pool=e.target.closest("#pool-drop");
+  if(room||pool) e.preventDefault();
+});
+document.addEventListener("drop", e=>{
+  const id=e.dataTransfer.getData("text/plain")||dragId;
+  if(!id) return;
+  const room=e.target.closest("[data-room]");
+  const pool=e.target.closest("#pool-drop");
+  document.querySelectorAll(".drag-over").forEach(el=>el.classList.remove("drag-over"));
+  if(room){ placement[id]=room.dataset.room; saveToFirestore(); render(); }
+  else if(pool){ placement[id]=null; saveToFirestore(); render(); }
+});
+document.addEventListener("dragenter", e=>{
+  const room=e.target.closest("[data-room]");
+  const pool=e.target.closest("#pool-drop");
+  document.querySelectorAll(".drag-over").forEach(el=>el.classList.remove("drag-over"));
+  if(room) room.classList.add("drag-over");
+  if(pool) pool.classList.add("drag-over");
+});
+
+// ── Sheet toggle (mobile/tablet) ──────────────────────────────────────────────
+window.toggleSheet=function(){
+  document.getElementById("sidebar").classList.toggle("open");
+};
+
+// ── Add guest ─────────────────────────────────────────────────────────────────
+window.addGuest=function(){
+  const name=document.getElementById("newName").value.trim();
+  const type=document.getElementById("newType").value;
+  const allergy=document.getElementById("newAllergy").value.trim();
+  if(!name) return;
+  const id="g_"+Date.now();
+  GUESTS.push({id,n:name,t:type,a:allergy});
+  placement[id]=null;
+  document.getElementById("newName").value="";
+  document.getElementById("newAllergy").value="";
+  saveToFirestore(); render();
+};
+document.getElementById("newName").addEventListener("keydown",e=>{if(e.key==="Enter")window.addGuest();});
+
+// ── Sjölyckan ─────────────────────────────────────────────────────────────────
+window.addSjolyckanRoom=function(){
+  const ne=document.getElementById("sjo-name"), be=document.getElementById("sjo-beds");
+  const name=ne.value.trim()||("Rum "+sjolyckanCounter);
+  const beds=parseInt(be.value)||2;
+  sjolyckanCounter++;
+  LOCATIONS.find(l=>l.id==="sjo").floors[0].rooms.push({id:"sjo_"+Date.now(),name,beds});
+  ne.value=""; be.value=""; saveToFirestore(); render();
+};
+window.removeSjolyckanRoom=function(roomId){
+  GUESTS.forEach(g=>{ if(placement[g.id]===roomId) placement[g.id]=null; });
+  LOCATIONS.find(l=>l.id==="sjo").floors[0].rooms=LOCATIONS.find(l=>l.id==="sjo").floors[0].rooms.filter(r=>r.id!==roomId);
+  saveToFirestore(); render();
+};
+
+// ── Search ────────────────────────────────────────────────────────────────────
+window.doSearch=function(){ searchQ=document.getElementById("searchInp").value.trim(); render(); };
+
+// ── Sync status ───────────────────────────────────────────────────────────────
+function setSyncStatus(s){
+  const el=document.getElementById("sync-status"); if(!el) return;
+  const m={saving:"⏳ Sparar...",saved:"✓ Sparat",error:"⚠ Fel",live:"● Live"};
+  el.textContent=m[s]||""; el.style.color=s==="error"?"var(--warn)":s==="live"||s==="saved"?"var(--ok)":"var(--gold)";
+}
+
+// ── Firebase ──────────────────────────────────────────────────────────────────
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const fbApp = initializeApp({
+  apiKey:"AIzaSyCxeDul8G-zj2qssLgMqNwLKNMC47jNPKw",
+  authDomain:"naas-boende.firebaseapp.com",
+  projectId:"naas-boende",
+  storageBucket:"naas-boende.firebasestorage.app",
+  messagingSenderId:"43622382271",
+  appId:"1:43622382271:web:2dfb5572924ea6bcb5a40a"
+});
+const db=getFirestore(fbApp);
+const STATE_DOC=doc(db,"boende","state");
+
+function getState(){
+  return {
+    placement:{...placement},
+    guests:GUESTS.filter(g=>g.id.startsWith("g_")).map(g=>({...g})),
+    sjoRooms:LOCATIONS.find(l=>l.id==="sjo").floors[0].rooms.map(r=>({...r})),
+  };
+}
+function applyState(data){
+  if(!data) return;
+  if(data.placement) Object.keys(data.placement).forEach(k=>{ placement[k]=data.placement[k]; });
+  if(data.guests) data.guests.forEach(g=>{ if(!GUESTS.find(x=>x.id===g.id)){ GUESTS.push(g); if(!(g.id in placement)) placement[g.id]=null; }});
+  if(data.sjoRooms) LOCATIONS.find(l=>l.id==="sjo").floors[0].rooms=data.sjoRooms.map(r=>({...r}));
+}
+
+let saveTimer=null;
+window.saveToFirestore=function(){
+  setSyncStatus("saving");
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    try{ await setDoc(STATE_DOC,getState()); setSyncStatus("saved"); setTimeout(()=>setSyncStatus("live"),2000); }
+    catch(e){ console.error(e); setSyncStatus("error"); }
+  },600);
+};
+
+onSnapshot(STATE_DOC,snap=>{
+  if(!snap.exists()) return;
+  applyState(snap.data()); render(); setSyncStatus("live");
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+render();
+setSyncStatus("live");
+</script>
+</body>
+</html>
