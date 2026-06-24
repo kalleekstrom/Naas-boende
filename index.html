@@ -2,7 +2,7 @@
 <html lang="sv">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Boendeplanering — Nääs Slott</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Inter:wght@300;400;500&display=swap');
@@ -47,7 +47,7 @@ header .sub{font-size:10px;color:var(--gold);letter-spacing:.07em;text-transform
 .stat-label{font-size:9px;color:#999;letter-spacing:.04em;text-transform:uppercase;}
 #sync-status{font-size:11px;min-width:80px;text-align:right;color:var(--ok);}
 
-/* ── Layout: desktop side-by-side, mobile stacked ── */
+/* ── Layout ── */
 .app{
   position:fixed;top:var(--header-h);left:0;right:0;bottom:0;
   display:flex;
@@ -59,6 +59,7 @@ header .sub{font-size:10px;color:var(--gold);letter-spacing:.07em;text-transform
   padding:14px 16px;
   display:flex;flex-direction:column;gap:12px;
   -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
 }
 .main::-webkit-scrollbar{width:4px;}
 .main::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
@@ -570,6 +571,7 @@ document.addEventListener("click", e=>{
 
 // ── Touch drag & drop ─────────────────────────────────────────────────────────
 let touchDragEl=null, touchGhostEl=null, touchDragId=null, touchLastTarget=null;
+let touchStartX=0, touchStartY=0, touchDragStarted=false, touchTimer=null;
 
 function findDropTarget(x,y){
   // hide ghost to hit-test underneath
@@ -586,23 +588,28 @@ function findDropTarget(x,y){
 document.addEventListener("touchstart", e=>{
   const chip=e.target.closest(".chip[data-id]");
   if(!chip||e.target.closest("[data-remove]")) return;
-  touchDragId=chip.dataset.id;
-  touchDragEl=chip;
+  touchStartX=e.touches[0].clientX;
+  touchStartY=e.touches[0].clientY;
+  touchDragStarted=false;
 
-  // Create floating ghost
-  const rect=chip.getBoundingClientRect();
-  touchGhostEl=chip.cloneNode(true);
-  touchGhostEl.classList.add("touch-dragging");
-  touchGhostEl.style.width=rect.width+"px";
-  touchGhostEl.style.left=rect.left+"px";
-  touchGhostEl.style.top=rect.top+"px";
-  document.body.appendChild(touchGhostEl);
-  chip.classList.add("ghost");
-  e.preventDefault();
-},{passive:false});
+  // Long press 300ms to start drag
+  touchTimer=setTimeout(()=>{
+    touchDragId=chip.dataset.id;
+    touchDragEl=chip;
+    touchDragStarted=true;
+    const rect=chip.getBoundingClientRect();
+    touchGhostEl=chip.cloneNode(true);
+    touchGhostEl.classList.add("touch-dragging");
+    touchGhostEl.style.width=rect.width+"px";
+    touchGhostEl.style.left=rect.left+"px";
+    touchGhostEl.style.top=rect.top+"px";
+    document.body.appendChild(touchGhostEl);
+    chip.classList.add("ghost");
+  },300);
+},{passive:true});
 
 document.addEventListener("touchmove", e=>{
-  if(!touchGhostEl) return;
+  if(!touchGhostEl) return; // not dragging — let scroll happen normally
   e.preventDefault();
   const t=e.touches[0];
   touchGhostEl.style.left=(t.clientX-44)+"px";
@@ -624,10 +631,11 @@ document.addEventListener("touchmove", e=>{
 },{passive:false});
 
 document.addEventListener("touchend", e=>{
-  if(!touchGhostEl) return;
+  clearTimeout(touchTimer);
+  if(!touchDragStarted){ touchDragId=null; touchDragEl=null; return; }
   document.querySelectorAll(".drag-over").forEach(el=>el.classList.remove("drag-over"));
   if(touchDragEl) touchDragEl.classList.remove("ghost");
-  touchGhostEl.remove(); touchGhostEl=null;
+  if(touchGhostEl){ touchGhostEl.remove(); touchGhostEl=null; }
 
   if(touchLastTarget&&touchDragId){
     if(touchLastTarget.type==="room") placement[touchDragId]=touchLastTarget.id;
@@ -635,7 +643,7 @@ document.addEventListener("touchend", e=>{
     saveToFirestore();
     render();
   }
-  touchDragId=null; touchDragEl=null; touchLastTarget=null;
+  touchDragId=null; touchDragEl=null; touchLastTarget=null; touchDragStarted=false;
 },{passive:true});
 
 // ── Desktop drag & drop ───────────────────────────────────────────────────────
